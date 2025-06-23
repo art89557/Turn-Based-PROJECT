@@ -21,12 +21,14 @@ class Entity:
         self.buffs = {} # e.g. {'atk_up': 2, 'def_up': 1}
 
     def take_damage(self, damage):
+        print(f"[DEBUG] {self.name} menerima damage raw: {damage}") # DEBUG
         # Apply defense reduction from status effects if any
-        current_defe = self.defe
+        current_defe = self.defe # Mulai dengan nilai DEF yang sudah disesuaikan buff/debuff lainnya
+
         if 'def_down' in self.status_effects:
-            # Misalnya, kurangi defense sebesar 30%
-            current_defe = max(0, current_defe * 0.70) 
-            print(f"{self.name}'s Defense berkurang karena Def_Down! DEF Efektif: {int(current_defe)}")
+            # Tingkatkan efek def_down, misalnya 40% pengurangan
+            current_defe = max(0, current_defe * 0.60) 
+            print(f"[DEBUG] {self.name}'s Defense berkurang karena Def_Down! DEF Efektif: {int(current_defe)}")
 
         final_damage = max(1, damage - current_defe)
         self.hp -= final_damage
@@ -54,30 +56,38 @@ class Entity:
         self._apply_stat_modifications() # Terapkan perubahan stat segera
 
     def _apply_stat_modifications(self):
-        # Setel ulang ke base stats sebelum menerapkan buff/debuff saat ini
+        # Reset ke base stats terlebih dahulu
         self.atk = self.base_atk
         self.defe = self.base_defe
         self.spd = self.base_spd
-        self.max_hp = self.base_hp # Penting untuk karakter dengan buff HP dari item
+        self.max_hp = self.base_hp 
+
+        # Jika ini karakter, terapkan stat dari senjata/item set terlebih dahulu
+        if isinstance(self, Character):
+            self._apply_equipment_stats() # Metode baru untuk menangani equipment
 
         # Terapkan buff
         if 'atk_up' in self.buffs:
-            self.atk *= 1.30 # Contoh: peningkatan ATK 30%
+            self.atk *= 1.40 # Contoh: peningkatan ATK 40% (ditingkatkan dari 30%)
+            print(f"[DEBUG] {self.name} ATK buffed to {int(self.atk)}")
         if 'def_up' in self.buffs:
-            self.defe *= 1.30 # Contoh: peningkatan DEF 30%
+            self.defe *= 1.40 # Contoh: peningkatan DEF 40% (ditingkatkan dari 30%)
+            print(f"[DEBUG] {self.name} DEF buffed to {int(self.defe)}")
         if 'spd_up' in self.buffs:
-            self.spd *= 1.30 # Contoh: peningkatan SPD 30%
+            self.spd *= 1.40 # Contoh: peningkatan SPD 40% (ditingkatkan dari 30%)
+            print(f"[DEBUG] {self.name} SPD buffed to {int(self.spd)}")
         
         # Terapkan status effects (debuff)
         if 'atk_down' in self.status_effects:
-            self.atk *= 0.70 # Contoh: penurunan ATK 30%
+            self.atk *= 0.60 # Contoh: penurunan ATK 40% (ditingkatkan dari 30%)
+            print(f"[DEBUG] {self.name} ATK debuffed to {int(self.atk)}")
         if 'slow' in self.status_effects:
-            self.spd *= 0.70 # Contoh: penurunan SPD 30%
-        # 'def_down' ditangani langsung di take_damage untuk fleksibilitas perhitungan damage.
+            self.spd *= 0.60 # Contoh: penurunan SPD 40% (ditingkatkan dari 30%)
+            print(f"[DEBUG] {self.name} SPD debuffed to {int(self.spd)}")
+        # Catatan: 'def_down' masih ditangani langsung di take_damage untuk fleksibilitas perhitungan damage.
 
-        # Terapkan kembali stat item/senjata untuk Karakter, karena bergantung pada base stats
-        if isinstance(self, Character):
-            self.calculate_stats() # Ini akan menerapkan bonus senjata/item set di atas base stats
+        # Pastikan HP tidak melebihi max_hp baru
+        self.hp = min(self.hp, self.max_hp)
 
     def tick_status(self):
         # Proses status effect di akhir giliran
@@ -119,27 +129,22 @@ class Character(Entity):
     def equip(self, weapon, item_set):
         self.weapon = weapon
         self.item_set = item_set
-        self.calculate_stats() # Perhitungan awal setelah melengkapi
+        # Hanya panggil _apply_stat_modifications setelah equip.
+        # calculate_stats sekarang menjadi bagian dari _apply_stat_modifications.
+        self._apply_stat_modifications()
 
-    def calculate_stats(self):
-        # Selalu mulai dari base stats saat menghitung ulang
-        # PENTING: _apply_stat_modifications akan dipanggil setelah ini untuk menangani buff/debuff
-        # Jadi, kita hanya perlu menerapkan weapon dan item_set di sini
-        self.max_hp = self.base_hp
-        self.atk = self.base_atk
-        self.defe = self.base_defe
-        self.spd = self.base_spd
-        self.aggro = 100
-        
+    # Metode ini sekarang internal dan dipanggil oleh _apply_stat_modifications
+    def _apply_equipment_stats(self):
         # Terapkan stat senjata
         if self.weapon:
             for stat, value in self.weapon.stats_boost.items():
+                # Pastikan ini menambah dari base_stats, bukan current_stats
                 if stat == 'max_hp': self.max_hp += self.base_hp * (value / 100)
                 if stat == 'atk': self.atk += self.base_atk * (value / 100)
                 if stat == 'defe': self.defe += self.base_defe * (value / 100)
                 if stat == 'spd': self.spd += self.base_spd * (value / 100)
-                if stat == 'aggro': self.aggro += value
-        
+                if stat == 'aggro': self.aggro += value # Aggro adalah bonus langsung
+
         # Terapkan stat item set (bonus 2-set)
         if self.item_set:
             for stat, value in self.item_set.bonus_2_stats.items():
@@ -149,8 +154,8 @@ class Character(Entity):
                 if stat == 'spd': self.spd += self.base_spd * (value / 100)
         
         # Terapkan bonus 4-set untuk aggro
-        if self.item_set and self.item_set.name == "Iron Sentinel": #
-            self.aggro *= 1.30 #
+        if self.item_set and self.item_set.name == "Iron Sentinel": 
+            self.aggro *= 1.30 
 
         # Pastikan HP saat ini tidak melebihi max_hp baru setelah perubahan stat
         self.hp = min(self.hp, self.max_hp)
@@ -172,10 +177,10 @@ class Character(Entity):
         target.take_damage(damage)
         self.gain_energy(10)
         # Efek Storm Piercer
-        if self.weapon and self.weapon.effect == 'double_attack': #
-             print(f"{self.name} menyerang lagi karena Storm Piercer!") #
-             target.take_damage(damage) #
-             self.gain_energy(10) #
+        if self.weapon and self.weapon.effect == 'double_attack': 
+             print(f"{self.name} menyerang lagi karena Storm Piercer!") 
+             target.take_damage(damage) 
+             self.gain_energy(10) 
         return True # Menandakan aksi berhasil
 
     def skill(self, target, **kwargs):
@@ -194,7 +199,7 @@ class Character(Entity):
 # --- Definisi Karakter Spesifik ---
 class Zeros (Character):
     def __init__(self):
-        super().__init__("Zeros", "DPS", hp=900, atk=180, defe=80, spd=110) # Buffed ATK, slightly increased HP
+        super().__init__("Zeros", "DPS", hp=900, atk=180, defe=80, spd=110) 
     def skill(self, target, **kwargs):
         super().skill(target)
         print(f"{self.name} menggunakan 'Crimson Rush', serangan kuat yang menembus pertahanan.")
@@ -212,7 +217,7 @@ class Zeros (Character):
 
 class Kael (Character):
     def __init__(self):
-        super().__init__("Kael", "Sub-DPS", hp=950, atk=130, defe=90, spd=125) # Buffed ATK and SPD
+        super().__init__("Kael", "Sub-DPS", hp=950, atk=130, defe=90, spd=125) 
     def skill(self, target, **kwargs):
         super().skill(target)
         print(f"{self.name} menggunakan 'Shadow Strike', menyerang titik lemah musuh.")
@@ -235,14 +240,12 @@ class Kael (Character):
         
 class Garen (Character):
     def __init__(self):
-        super().__init__("Garen", "Tank", hp=1800, atk=70, defe=180, spd=85) # Significantly increased HP and DEF
+        super().__init__("Garen", "Tank", hp=1800, atk=70, defe=180, spd=85) 
     def skill(self, target, **kwargs):
         super().skill(target)
         print(f"{self.name} menggunakan 'Taunting Shout', memprovokasi musuh dan meningkatkan pertahanan!")
         self.aggro += 75 
         self.apply_buff('def_up', 2)
-        # Hapus baris ini karena _apply_stat_modifications yang akan menangani perubahan DEF
-        # self.defe *= 1.25 
         print(f"Aggro Garen meningkat! Pertahanannya juga naik!")
         return True
     def special(self, target, **kwargs):
@@ -259,7 +262,7 @@ class Garen (Character):
 
 class Lux (Character):
     def __init__(self):
-        super().__init__("Lux", "Support", hp=1000, atk=80, defe=90, spd=120) # Increased HP, DEF, SPD
+        super().__init__("Lux", "Support", hp=1000, atk=80, defe=90, spd=120) 
     def skill(self, target, **kwargs):
         super().skill(target)
         print(f"{self.name} menggunakan 'Aura of Courage', meningkatkan ATK seluruh tim.")
@@ -281,7 +284,7 @@ class Lux (Character):
         
 class Soraka (Character):
     def __init__(self):
-        super().__init__("Soraka", "Healer", hp=1100, atk=70, defe=90, spd=110) # Increased HP and DEF
+        super().__init__("Soraka", "Healer", hp=1100, atk=70, defe=90, spd=110) 
     def skill(self, target, **kwargs):
         super().skill(target)
         print(f"{self.name} menggunakan 'Starlight Heal', memulihkan HP satu target.")
@@ -302,7 +305,7 @@ class Soraka (Character):
 
 class Veigar (Character):
     def __init__(self):
-        super().__init__("Veigar", "Debuffer", hp=950, atk=100, defe=85, spd=115) # Slightly increased stats
+        super().__init__("Veigar", "Debuffer", hp=950, atk=100, defe=85, spd=115) 
     def skill(self, target, **kwargs):
         super().skill(target)
         print(f"{self.name} menggunakan 'Curse of Weakness', menurunkan pertahanan musuh.")
@@ -318,13 +321,13 @@ class Veigar (Character):
         return True
 
 # --- Database Karakter ---
-AVAILABLE_CHARACTERS = [ #
-    Zeros(), Kael(), Garen(), Lux(), Soraka(), Veigar(), #
-    Character("Ashe", "Sub-DPS", 900, 115, 85, 125), #
-    Character("Draven", "DPS", 780, 155, 65, 115), #
-    Character("Braum", "Tank", 1600, 75, 160, 85), #
-    Character("Janna", "Support", 880, 80, 80, 130) #
-] #
+AVAILABLE_CHARACTERS = [ 
+    Zeros(), Kael(), Garen(), Lux(), Soraka(), Veigar(), 
+    Character("Ashe", "Sub-DPS", 900, 115, 85, 125),
+    Character("Draven", "DPS", 780, 155, 65, 115),
+    Character("Braum", "Tank", 1600, 75, 160, 85),
+    Character("Janna", "Support", 880, 80, 80, 130)
+]
 
 # --- Definisi Boss ---
 class Boss(Entity):
@@ -362,30 +365,32 @@ class Boss(Entity):
 
 class StoneGolem(Boss):
     def __init__(self):
-        super().__init__("Ancient Stone Golem", hp=8500, atk=220, defe=220, spd=70) # Balanced HP/ATK/DEF, lower SPD
+        # Menyesuaikan stats boss agar lebih seimbang
+        super().__init__("Ancient Stone Golem", hp=7000, atk=200, defe=180, spd=70) # Sedikit mengurangi HP/ATK/DEF boss
     def special_action(self, player_team):
         print(f"{self.name} menggunakan 'Earthquake'! Menyerang semua karakter.")
         for player in player_team:
             if player.is_alive:
-                # Serangan Stone Golem juga akan terpengaruh oleh debuff ATK-nya sendiri
                 # ATK sudah diperbarui secara dinamis
                 player.take_damage(self.atk * 0.7) 
 
 class VoidDragon(Boss):
     def __init__(self):
-        super().__init__("Void Dragon", hp=7500, atk=280, defe=160, spd=120) # Higher ATK, slightly lower HP, higher SPD
-        self.enrage_threshold = 0.6 #
+        # Menyesuaikan stats boss agar lebih seimbang
+        super().__init__("Void Dragon", hp=6000, atk=250, defe=130, spd=120) # Sedikit mengurangi HP/DEF boss, ATK masih tinggi
+        self.enrage_threshold = 0.6 
     def special_action(self, player_team):
         print(f"{self.name} menggunakan 'Corrupting Breath'! Menyerang dan memberi debuff.")
-        target = random.choice([p for p in player_team if p.is_alive])
+        target = random.choice([p for p p in player_team if p.is_alive])
         # ATK sudah diperbarui secara dinamis
         target.take_damage(self.atk * 1.2) 
-        target.apply_status_effect('burn', 2) 
-        target.apply_status_effect('def_down', 2)
+        target.apply_status_effect('burn', 2) # Mengurangi durasi debuff
+        target.apply_status_effect('def_down', 2) # Mengurangi durasi debuff
 
 class CelestialArbiter(Boss):
     def __init__(self):
-        super().__init__("Celestial Arbiter", hp=9500, atk=200, defe=190, spd=105) # Increased HP, slightly lower ATK, higher DEF
+        # Menyesuaikan stats boss agar lebih seimbang
+        super().__init__("Celestial Arbiter", hp=8000, atk=180, defe=160, spd=105) # Mengurangi HP/ATK/DEF boss
     def special_action(self, player_team):
         print(f"{self.name} menggunakan 'Judgment'! Menghapus buff tim dan menyerang.")
         for player in player_team:
@@ -397,4 +402,4 @@ class CelestialArbiter(Boss):
         # ATK sudah diperbarui secara dinamis
         target.take_damage(self.atk * 1.8) 
 
-BOSSES = [StoneGolem(), VoidDragon(), CelestialArbiter()] #
+BOSSES = [StoneGolem(), VoidDragon(), CelestialArbiter()]
