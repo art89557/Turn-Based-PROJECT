@@ -1,0 +1,224 @@
+import random
+
+# ======= CHARACTER SECTION =======
+
+class Character:
+    def __init__(self, name, role, max_hp, atk, defense, max_energy):
+        self.name = name
+        self.role = role
+        self.max_hp = max_hp
+        self.hp = max_hp
+        self.atk = atk
+        self.defense = defense
+        self.energy = 0
+        self.max_energy = max_energy
+        self.weapon = None
+        self.item_set = None
+
+    def is_alive(self):
+        return self.hp > 0
+
+    def take_damage(self, damage):
+        reduced = max(0, damage - self.defense)
+        self.hp = max(0, self.hp - reduced)
+        return reduced
+
+    def basic_attack(self, target):
+        damage = self.atk + (self.weapon.bonus_atk if self.weapon else 0)
+        print(f"{self.name} menyerang {target.name} dengan Basic Attack!")
+        dealt = target.take_damage(damage)
+        self.energy += 1
+        return dealt
+
+    def special_skill(self, target):
+        if self.energy >= self.max_energy:
+            damage = self.atk * 2
+            print(f"{self.name} menggunakan Special Skill ke {target.name}!")
+            dealt = target.take_damage(damage)
+            self.energy = 0
+            return dealt
+        else:
+            print(f"{self.name} belum cukup energi untuk Special!")
+            return 0
+
+    def apply_items(self):
+        if self.item_set:
+            self.hp += self.item_set.bonus_hp
+            self.atk += self.item_set.bonus_atk
+            self.defense += self.item_set.bonus_def
+            self.max_hp += self.item_set.bonus_hp
+
+# ======= CHARACTER POOL =======
+
+CHARACTERS_POOL = [
+    Character("Arka", "DPS", 100, 25, 5, 3),
+    Character("Lina", "Sub DPS", 110, 20, 8, 3),
+    Character("Goro", "Tank", 160, 10, 15, 3),
+    Character("Mira", "Healer", 120, 10, 7, 3),
+    Character("Yuki", "Debuffer", 100, 15, 10, 3),
+    Character("Rio", "Support", 110, 12, 8, 3),
+]
+
+# ======= WEAPON SECTION =======
+
+class Weapon:
+    def __init__(self, name, bonus_atk):
+        self.name = name
+        self.bonus_atk = bonus_atk
+
+WEAPON_POOL = [
+    Weapon("Sword of Flame", 10),
+    Weapon("Axe of Fury", 12),
+    Weapon("Staff of Grace", 5),
+    Weapon("Dagger of Speed", 7)
+]
+
+class ItemSet:
+    def __init__(self, name, bonus_hp=0, bonus_atk=0, bonus_def=0):
+        self.name = name
+        self.bonus_hp = bonus_hp
+        self.bonus_atk = bonus_atk
+        self.bonus_def = bonus_def
+
+ITEM_SETS = [
+    ItemSet("Berserker Set", bonus_atk=5),
+    ItemSet("Guardian Set", bonus_hp=20, bonus_def=5),
+    ItemSet("Vitality Set", bonus_hp=30),
+    ItemSet("Warrior Set", bonus_hp=10, bonus_atk=3, bonus_def=2)
+]
+
+# ======= BOSS SECTION =======
+
+class Boss:
+    def __init__(self, name, hp, atk, defense):
+        self.name = name
+        self.hp = hp
+        self.max_hp = hp
+        self.atk = atk
+        self.defense = defense
+
+    def is_alive(self):
+        return self.hp > 0
+
+    def take_damage(self, dmg):
+        reduced = max(0, dmg - self.defense)
+        self.hp = max(0, self.hp - reduced)
+        return reduced
+
+    def attack(self, party):
+        target = random.choice([c for c in party if c.is_alive()])
+        print(f"{self.name} menyerang {target.name}!")
+        dealt = target.take_damage(self.atk)
+        print(f"{target.name} menerima {dealt} damage!")
+
+# ======= STAGES SECTION =======
+
+STAGES = {
+    "Hutan Gelap": Boss("Raksasa Hutan", 250, 20, 5),
+    "Gua Lava": Boss("Naga Api", 300, 25, 10),
+    "Menara Kegelapan": Boss("Penyihir Kuno", 200, 30, 3)
+}
+
+# ======= GAME MANAGER =======
+
+class GameManager:
+    def __init__(self):
+        self.party = []
+        self.boss = None
+        self.stage = None
+        self.skill_points = 3
+
+    def choose_stage(self):
+        print("\nPilih Stage:")
+        for idx, stage in enumerate(STAGES.keys(), 1):
+            print(f"{idx}. {stage}")
+        choice = int(input("Masukkan nomor stage: ")) - 1
+        self.stage = list(STAGES.keys())[choice]
+        self.boss = STAGES[self.stage]
+        print(f"Stage {self.stage} dipilih. Melawan: {self.boss.name}")
+
+    def choose_characters(self):
+        print("\nPilih 3 karakter:")
+        for idx, char in enumerate(CHARACTERS_POOL, 1):
+            print(f"{idx}. {char.name} - {char.role}")
+        while len(self.party) < 3:
+            choice = int(input(f"Pilih karakter {len(self.party)+1}: ")) - 1
+            selected = CHARACTERS_POOL[choice]
+            self.party.append(Character(
+                selected.name, selected.role, selected.max_hp, selected.atk,
+                selected.defense, selected.max_energy
+            ))
+        print("Karakter terpilih:", ', '.join(c.name for c in self.party))
+
+    def equip_items(self):
+        for char in self.party:
+            print(f"\n{char.name} memilih senjata:")
+            for idx, weapon in enumerate(WEAPON_POOL, 1):
+                print(f"{idx}. {weapon.name} (+{weapon.bonus_atk} ATK)")
+            w_choice = int(input("Pilihan: ")) - 1
+            char.weapon = WEAPON_POOL[w_choice]
+
+            print(f"{char.name} memilih Item Set:")
+            for idx, item in enumerate(ITEM_SETS, 1):
+                print(f"{idx}. {item.name}")
+            i_choice = int(input("Pilihan: ")) - 1
+            char.item_set = ITEM_SETS[i_choice]
+            char.apply_items()
+
+    def show_status(self):
+        print("\n[ STATUS ]")
+        for char in self.party:
+            print(f"{char.name} | HP: {char.hp}/{char.max_hp} | Energy: {char.energy}/{char.max_energy}")
+        print(f"Boss {self.boss.name} | HP: {self.boss.hp}/{self.boss.max_hp}")
+
+    def take_turn(self):
+        for char in self.party:
+            if not char.is_alive():
+                continue
+            print(f"\nGiliran {char.name}")
+            print("1. Basic Attack")
+            print("2. Special Skill")
+            choice = input("Pilih aksi: ")
+            if choice == "1":
+                damage = char.basic_attack(self.boss)
+            elif choice == "2":
+                damage = char.special_skill(self.boss)
+            else:
+                print("Pilihan tidak valid. Basic attack digunakan.")
+                damage = char.basic_attack(self.boss)
+            print(f"Damage ke boss: {damage}")
+
+            if not self.boss.is_alive():
+                return True
+        return False
+
+    def boss_turn(self):
+        if self.boss.is_alive():
+            self.boss.attack(self.party)
+
+    def is_game_over(self):
+        return all(not char.is_alive() for char in self.party)
+
+    def play(self):
+        print("=== Turn-Based RPG Game Dimulai ===")
+        self.choose_stage()
+        self.choose_characters()
+        self.equip_items()
+
+        while True:
+            self.show_status()
+            boss_defeated = self.take_turn()
+            if boss_defeated:
+                print(f"\nBoss {self.boss.name} dikalahkan! Kamu menang!")
+                break
+            self.boss_turn()
+            if self.is_game_over():
+                print("\nSeluruh karakter kamu tumbang. Game Over.")
+                break
+
+        print("=== Pertarungan selesai ===")
+
+# ======= MAIN =======
+
+if __name__ == "__main__":
+    GameManager().play()
